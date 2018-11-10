@@ -1,0 +1,155 @@
+diff --git a/arch/arm/boot/dts/sunxi-h3-h5.dtsi b/arch/arm/boot/dts/sunxi-h3-h5.dtsi
+index c3bff1105e5d..47e1337cd879 100644
+--- a/arch/arm/boot/dts/sunxi-h3-h5.dtsi
++++ b/arch/arm/boot/dts/sunxi-h3-h5.dtsi
+@@ -393,6 +393,13 @@
+ 			interrupt-controller;
+ 			#interrupt-cells = <3>;
+ 
++			csi_pins: csi {
++				pins = "PE0", "PE1", "PE2", "PE3", "PE4",
++				       "PE5", "PE6", "PE7", "PE8", "PE9",
++				       "PE10", "PE11";
++				function = "csi";
++			};
++
+ 			emac_rgmii_pins: emac0 {
+ 				pins = "PD0", "PD1", "PD2", "PD3", "PD4",
+ 				       "PD5", "PD7", "PD8", "PD9", "PD10",
+@@ -746,6 +753,21 @@
+ 			interrupts = <GIC_PPI 9 (GIC_CPU_MASK_SIMPLE(4) | IRQ_TYPE_LEVEL_HIGH)>;
+ 		};
+ 
++		csi: camera@1cb0000 {
++			compatible = "allwinner,sun8i-h3-csi",
++				     "allwinner,sun6i-a31-csi";
++			reg = <0x01cb0000 0x1000>;
++			interrupts = <GIC_SPI 84 IRQ_TYPE_LEVEL_HIGH>;
++			clocks = <&ccu CLK_BUS_CSI>,
++				 <&ccu CLK_CSI_SCLK>,
++				 <&ccu CLK_DRAM_CSI>;
++			clock-names = "bus", "mod", "ram";
++			resets = <&ccu RST_BUS_CSI>;
++			pinctrl-names = "default";
++			pinctrl-0 = <&csi_pins>;
++			status = "disabled";
++		};
++
+ 		hdmi: hdmi@1ee0000 {
+ 			compatible = "allwinner,sun8i-h3-dw-hdmi",
+ 				     "allwinner,sun8i-a83t-dw-hdmi";
+diff --git a/arch/arm/boot/dts/sunxi-libretech-all-h3-cc.dtsi b/arch/arm/boot/dts/sunxi-libretech-all-h3-cc.dtsi
+index f7ffdd6658a2..9fb40074d782 100644
+--- a/arch/arm/boot/dts/sunxi-libretech-all-h3-cc.dtsi
++++ b/arch/arm/boot/dts/sunxi-libretech-all-h3-cc.dtsi
+@@ -114,6 +114,38 @@
+ 		gpio = <&r_pio 0 8 GPIO_ACTIVE_HIGH>; /* PL8 */
+ 		enable-active-high;
+ 	};
++
++	cam_xclk: cam-xclk {
++		#clock-cells = <0>;
++		compatible = "fixed-clock";
++		clock-frequency = <24000000>;
++		clock-output-names = "cam-xclk";
++	};
++
++	reg_cam_avdd: cam-avdd {
++		compatible = "regulator-fixed";
++		regulator-name = "cam500b-avdd";
++		regulator-min-microvolt = <2800000>;
++		regulator-max-microvolt = <2800000>;
++		vin-supply = <&reg_vcc3v3>;
++	};
++
++	reg_cam_dovdd: cam-dovdd {
++		compatible = "regulator-fixed";
++		regulator-name = "cam500b-dovdd";
++		regulator-min-microvolt = <1800000>;
++		regulator-max-microvolt = <1800000>;
++		vin-supply = <&reg_vcc3v3>;
++	};
++
++	reg_cam_dvdd: cam-dvdd {
++		compatible = "regulator-fixed";
++		regulator-name = "cam500b-dvdd";
++		regulator-min-microvolt = <1500000>;
++		regulator-max-microvolt = <1500000>;
++		vin-supply = <&reg_vcc3v3>;
++	};
++
+ };
+ 
+ &codec {
+@@ -213,3 +245,71 @@
+ 	usb3_vbus-supply = <&reg_vcc5v0>;
+ 	status = "okay";
+ };
++
++&csi {
++	status = "okay";
++	port {
++		#address-cells = <1>;
++        #size-cells = <0>;
++		csi_0: endpoint {
++			remote-endpoint = <&csi_from_ov5640>;
++			bus-width = <8>;
++            data-shift = <2>;
++            hsync-active = <1>; /* Active high */
++            vsync-active = <0>; /* Active low */
++            data-active = <1>;  /* Active high */
++            pclk-sample = <1>;  /* Rising */
++		};
++	};
++};
++
++&i2c0 {
++	status = "okay";
++};
++
++&i2c1 {
++	status = "okay";
++};
++
++&i2c2 {
++	status = "okay";
++
++	ov5640: camera@3c {
++		compatible = "ovti,ov5640";
++		/*pinctrl-names = "default";
++		pinctrl-0 = <&i2c2_pins>;
++		*/
++		reg = <0x3c>;
++		clocks = <&cam_xclk>;
++		clock-names = "xclk";
++		xclk = <24000000>;
++
++		/* PL7 AFCC-EN 1.8V */
++		DOVDD-supply = <&reg_cam_dovdd>;
++		/* PL1 CSI-EN 2.8v */
++		AVDD-supply = <&reg_cam_avdd>;
++		/* PL0 CAM-PWR 1.5v*/
++		DVDD-supply = <&reg_cam_dvdd>;
++
++		/* CSI-STBY PE14 */
++		powerdown-gpios = <&pio 4 14 GPIO_ACTIVE_HIGH>;
++		/* CSI-RST  PE15 */
++		reset-gpios = <&pio 4 15 GPIO_ACTIVE_LOW>;
++
++		port {
++			csi_from_ov5640: endpoint {
++				remote-endpoint = <&csi_0>;
++				bus-width = <8>;
++				data-shift = <2>;
++				hsync-active = <1>; /* Active high */
++				vsync-active = <0>; /* Active low */
++				data-active = <1>;  /* Active high */
++                pclk-sample = <1>;  /* Rising */
++			};
++		};
++	};
++};
++
++&i2c2_pins {
++   bias-pull-up;
++};
