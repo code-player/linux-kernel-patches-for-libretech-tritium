@@ -1,0 +1,112 @@
+diff --git a/drivers/gpio/devres.c b/drivers/gpio/devres.c
+index e82cc763633c..35929ece717a 100644
+--- a/drivers/gpio/devres.c
++++ b/drivers/gpio/devres.c
+@@ -83,6 +83,7 @@ struct gpio_desc *__must_check devm_gpiod_get_optional(struct device *dev,
+ 						       const char *con_id,
+ 						       enum gpiod_flags flags)
+ {
++	printk("getting gpio for %s", con_id);
+ 	return devm_gpiod_get_index_optional(dev, con_id, 0, flags);
+ }
+ EXPORT_SYMBOL(devm_gpiod_get_optional);
+@@ -244,10 +245,12 @@ struct gpio_desc *__must_check devm_gpiod_get_index_optional(struct device *dev,
+ 
+ 	desc = devm_gpiod_get_index(dev, con_id, index, flags);
+ 	if (IS_ERR(desc)) {
+-		if (PTR_ERR(desc) == -ENOENT)
++		if (PTR_ERR(desc) == -ENOENT) {
++			printk("returning NULL for %s", con_id);
+ 			return NULL;
++		}
+ 	}
+-
++	printk("returning non-NULL for %s", con_id);
+ 	return desc;
+ }
+ EXPORT_SYMBOL(devm_gpiod_get_index_optional);
+diff --git a/drivers/gpio/gpiolib.c b/drivers/gpio/gpiolib.c
+index e11a3bb03820..2816c20bc9bd 100644
+--- a/drivers/gpio/gpiolib.c
++++ b/drivers/gpio/gpiolib.c
+@@ -3846,6 +3846,7 @@ struct gpio_desc *__must_check gpiod_get_index(struct device *dev,
+ 
+ 	if (dev) {
+ 		/* Using device tree? */
++		printk("using device tree for gpio");
+ 		if (IS_ENABLED(CONFIG_OF) && dev->of_node) {
+ 			dev_dbg(dev, "using device tree for GPIO lookup\n");
+ 			desc = of_find_gpio(dev, con_id, idx, &lookupflags);
+diff --git a/drivers/i2c/busses/i2c-mv64xxx.c b/drivers/i2c/busses/i2c-mv64xxx.c
+index a5a95ea5b81a..369e30d9aa7b 100644
+--- a/drivers/i2c/busses/i2c-mv64xxx.c
++++ b/drivers/i2c/busses/i2c-mv64xxx.c
+@@ -539,7 +539,7 @@ mv64xxx_i2c_wait_for_completion(struct mv64xxx_i2c_data *drv_data)
+ 
+ 	time_left = wait_event_timeout(drv_data->waitq,
+ 		!drv_data->block, drv_data->adapter.timeout);
+-
++	printk("time_left: %ld", time_left);
+ 	spin_lock_irqsave(&drv_data->lock, flags);
+ 	if (!time_left) { /* Timed out */
+ 		drv_data->rc = -ETIMEDOUT;
+@@ -573,6 +573,7 @@ mv64xxx_i2c_execute_msg(struct mv64xxx_i2c_data *drv_data, struct i2c_msg *msg,
+ 				int is_last)
+ {
+ 	unsigned long	flags;
++	printk("inside mv64xxx_i2c_execute_msg");
+ 
+ 	spin_lock_irqsave(&drv_data->lock, flags);
+ 
+@@ -582,7 +583,7 @@ mv64xxx_i2c_execute_msg(struct mv64xxx_i2c_data *drv_data, struct i2c_msg *msg,
+ 	drv_data->block = 1;
+ 	mv64xxx_i2c_send_start(drv_data);
+ 	spin_unlock_irqrestore(&drv_data->lock, flags);
+-
++	printk("waiting for mv64xxx_i2c_wait_for_completion to return");
+ 	mv64xxx_i2c_wait_for_completion(drv_data);
+ 	return drv_data->rc;
+ }
+diff --git a/drivers/i2c/i2c-core-base.c b/drivers/i2c/i2c-core-base.c
+index 15c95aaa484c..43910cbc3b30 100644
+--- a/drivers/i2c/i2c-core-base.c
++++ b/drivers/i2c/i2c-core-base.c
+@@ -1881,6 +1881,7 @@ int __i2c_transfer(struct i2c_adapter *adap, struct i2c_msg *msgs, int num)
+ 		if (time_after(jiffies, orig_jiffies + adap->timeout))
+ 			break;
+ 	}
++	printk("value to return from __i2c_transfer :%d", ret);
+ 
+ 	if (static_branch_unlikely(&i2c_trace_msg_key)) {
+ 		int i;
+diff --git a/drivers/regulator/core.c b/drivers/regulator/core.c
+index 6ed568b96c0e..ceae1c29a925 100644
+--- a/drivers/regulator/core.c
++++ b/drivers/regulator/core.c
+@@ -1522,11 +1522,16 @@ static struct regulator_dev *regulator_dev_lookup(struct device *dev,
+ 
+ 	/* first do a dt based lookup */
+ 	if (dev && dev->of_node) {
++		printk("looking into device tree");
+ 		node = of_get_regulator(dev, supply);
++
+ 		if (node) {
+ 			r = of_find_regulator_by_node(node);
+-			if (r)
++			if (r){
++				printk("returning r=%p supply_name=%s", r, r->supply_name);
+ 				return r;
++			}
++			printk("have a node but no device");
+ 
+ 			/*
+ 			 * We have a node, but there is no device.
+@@ -1644,7 +1649,7 @@ struct regulator *_regulator_get(struct device *dev, const char *id,
+ 	struct regulator *regulator;
+ 	const char *devname = dev ? dev_name(dev) : "deviceless";
+ 	int ret;
+-
++	printk("id->%s type->%d\n", id, get_type);
+ 	if (get_type >= MAX_GET_TYPE) {
+ 		dev_err(dev, "invalid type %d in %s\n", get_type, __func__);
+ 		return ERR_PTR(-EINVAL);
